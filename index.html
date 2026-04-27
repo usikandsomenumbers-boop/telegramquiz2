@@ -51,15 +51,52 @@
     let currentQuestion = 0;
     let timerInterval;
     let answers = [];
+    // ================== YOUR QUESTIONS ==================
+    // How to add new questions:
+    // 1. Copy one block below
+    // 2. Change the question text
+    // 3. Change the 4 options
+    // 4. Set "correct: number" (0 = first option, 1 = second, etc.)
 
     const questions = [
-      { q: "It is only a test please press correct answer", options: ["correct", "incorrect"], correct: 0 },
-      { q: "What is the capital of Uzbekistan?", options: ["Tashkent", "Samarkand", "Bukhara", "Andijan"], correct: 0 },
-      { q: "How many seconds is the timer for each question?", options: ["10 seconds", "15 seconds", "20 seconds", "30 seconds"], correct: 1 },
-      { q: "What is 15 + 15?", options: ["25", "30", "20", "35"], correct: 1 },
-      { q: "Will I get bonus for it? 😊", options: ["Yes", "No", "Maybe", "Only if I smile"], correct: 0 }
-    ];
+      {
+        q: "It is only a test please press correct answer",
+        options: ["correct", "incorrect"],
+        correct: 0          // "correct" is the right answer (first option)
+      },
+      {
+        q: "What is the capital of Uzbekistan?",
+        options: ["Tashkent", "Samarkand", "Bukhara", "Andijan"],
+        correct: 0          // Tashkent is correct → position 0
+      },
+      {
+        q: "How many seconds is the timer for each question?",
+        options: ["10 seconds", "15 seconds", "20 seconds", "30 seconds"],
+        correct: 1          // 15 seconds is correct → position 1
+      },
+      {
+        q: "What is 15 + 15?",
+        options: ["25", "30", "20", "35"],
+        correct: 1          // 30 is correct → position 1
+      },
+      {
+        q: "Will I get bonus for it? 😊",
+        options: ["Yes", "No", "Maybe"],
+        correct: 0          // Yes is correct → position 0
+      }
 
+      // ================== ADD NEW QUESTIONS BELOW THIS LINE ==================
+      
+      // Example of how to add a new question:
+      // {
+      //   q: "Your new question here?",
+      //   options: ["Option A", "Option B", "Option C", "Option D"],
+      //   correct: 2                    // Change this number to set correct answer
+      // }
+
+    ];
+    // ===================================================
+    
     function startQuiz() {
       userName = document.getElementById('user-name').value.trim();
       if (!userName) { alert("Name is required!"); return; }
