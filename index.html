@@ -16,43 +16,27 @@
       text-align: center;
       min-height: 100vh;
     }
-    .container {
-      max-width: 420px;
-      margin: 40px auto 0;
-    }
-    h1 {
-      font-size: 28px;
-      margin-bottom: 8px;
-    }
-    p {
-      color: #aaaaaa;
-      margin-bottom: 20px;
-    }
-    input {
+    .container { max-width: 420px; margin: 40px auto 0; }
+    h1 { font-size: 28px; margin-bottom: 8px; }
+    p { color: #aaaaaa; margin-bottom: 20px; }
+
+    input, button {
       width: 100%;
       padding: 16px 20px;
       margin-bottom: 20px;
-      background: #1f1f1f;
-      color: white;
-      border: none;
       border-radius: 16px;
       font-size: 17px;
       box-sizing: border-box;
     }
-    button {
-      width: 100%;
-      padding: 16px 20px;
-      background: #229ED9;
-      color: white;
-      border: none;
-      border-radius: 16px;
-      font-size: 17px;
-      font-weight: 600;
-      cursor: pointer;
+    input { background: #1f1f1f; color: white; border: none; }
+    button { 
+      background: #229ED9; 
+      color: white; 
+      border: none; 
+      font-weight: 600; 
+      cursor: pointer; 
     }
-    button:active {
-      background: #1a8ac4;
-    }
+    button:active { background: #1a8ac4; }
 
     .option {
       background: #1f1f1f;
@@ -73,7 +57,6 @@
     }
     #progress-bar {
       height: 100%;
-      width: 0%;
       background: linear-gradient(to right, #229ED9, #4CAF50);
       transition: width 0.4s ease;
     }
@@ -93,20 +76,20 @@
   <div id="quiz-screen" style="display: none;" class="container">
     <h2 id="question-text"></h2>
     <div id="progress-container">
-      <div id="progress-bar"></div>
+      <div id="progress-bar" style="width:100%"></div>
     </div>
     <div id="options"></div>
   </div>
 
-  <!-- Thank You / Processing Screen -->
+  <!-- Processing Screen -->
   <div id="thank-screen" style="display: none;" class="container">
     <h1 id="thank-title">Processing...</h1>
     <p id="thank-text">Please wait while we save your result</p>
     
     <div id="progress-container">
-      <div id="progress-bar"></div>
+      <div id="progress-bar" style="width:0%"></div>
     </div>
-    <p id="status-text" style="color:#aaa; margin-top:15px;">Saving answers & generating PDF...</p>
+    <p id="status-text" style="color:#aaa; margin-top:15px;">Generating PDF...</p>
   </div>
 
   <script>
@@ -120,34 +103,15 @@
     let answers = [];
 
     const questions = [
-      {
-        q: "It is only a test please press correct answer to test it out at the end",
-        options: ["correct", "incorrect"],
-        correct: 0
-      },
-      {
-        q: "What is the capital of Uzbekistan?",
-        options: ["Tashkent", "Samarkand", "Bukhara", "Andijan"],
-        correct: 0
-      },
-      {
-        q: "What is 15 + 15?",
-        options: ["25", "30", "20", "35"],
-        correct: 1
-      },
-      {
-        q: "Will I get bonus for it? 😊",
-        options: ["Yes", "No", "Maybe", "Only if I smile"],
-        correct: 0
-      }
+      { q: "It is only a test please press correct answer to test it out at the end", options: ["correct", "incorrect"], correct: 0 },
+      { q: "What is the capital of Uzbekistan?", options: ["Tashkent", "Samarkand", "Bukhara", "Andijan"], correct: 0 },
+      { q: "What is 15 + 15?", options: ["25", "30", "20", "35"], correct: 1 },
+      { q: "Will I get bonus for it? 😊", options: ["Yes", "No", "Maybe", "Only if I smile"], correct: 0 }
     ];
 
     function startQuiz() {
       userName = document.getElementById('user-name').value.trim();
-      if (!userName) {
-        alert("Name is required!");
-        return;
-      }
+      if (!userName) return alert("Name is required!");
       document.getElementById('name-screen').style.display = 'none';
       document.getElementById('quiz-screen').style.display = 'block';
       loadQuestion();
@@ -174,14 +138,14 @@
     }
 
     function startProgressBar() {
-      const progressBar = document.getElementById('progress-bar');
+      const bar = document.getElementById('progress-bar');
       let timeLeft = 10;
-      progressBar.style.width = '100%';
+      bar.style.width = '100%';
       clearInterval(timerInterval);
 
       timerInterval = setInterval(() => {
         timeLeft -= 0.1;
-        progressBar.style.width = (timeLeft / 10 * 100) + '%';
+        bar.style.width = (timeLeft / 10 * 100) + '%';
         if (timeLeft <= 0) {
           clearInterval(timerInterval);
           answers.push({ qIndex: currentQuestion, answer: null, correct: false });
@@ -209,33 +173,26 @@
       generateAndSendPDF();
     }
 
-    // ================== PDF GENERATOR + PROGRESS ==================
     function generateAndSendPDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
 
       const submissionDate = new Date().toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+        year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
       });
 
       const correctCount = answers.filter(ans => ans.correct === true).length;
       const scorePercent = Math.round((correctCount / questions.length) * 100);
 
-      // Create PDF
+      // Generate PDF
       doc.setFontSize(22);
       doc.text("📋 Quiz Result", 105, 25, { align: "center" });
-
       doc.setFontSize(14);
       doc.text(`Name: ${userName}`, 20, 45);
       doc.text(`Submitted: ${submissionDate}`, 20, 55);
       doc.setFontSize(16);
-      doc.text(`Score: ${correctCount} / ${questions.length} (${scorePercent}%)`, 20, 70);
-
-      doc.setDrawColor(100);
+      doc.text(`Score: ${correctCount}/${questions.length} (${scorePercent}%)`, 20, 70);
       doc.line(20, 80, 190, 80);
 
       let y = 95;
@@ -246,16 +203,16 @@
 
         doc.setFontSize(12);
         doc.setTextColor(255, 255, 255);
-        doc.text(`${i + 1}. ${q.q}`, 20, y);
+        doc.text(`${i+1}. ${q.q}`, 20, y);
         y += 10;
 
         doc.setFontSize(11);
         if (isCorrect) {
           doc.setTextColor(0, 180, 0);
-          doc.text(`Your Answer: ${userAnswer}  ✓`, 25, y);
+          doc.text(`Your Answer: ${userAnswer} ✓`, 25, y);
         } else {
           doc.setTextColor(220, 50, 50);
-          doc.text(`Your Answer: ${userAnswer}  ✕`, 25, y);
+          doc.text(`Your Answer: ${userAnswer} ✕`, 25, y);
         }
         y += 9;
 
@@ -275,42 +232,54 @@
 
       const pdfBase64 = doc.output('datauristring').split(',')[1];
 
-      // === Progress Animation ===
+      // Progress
       const progressBar = document.getElementById('progress-bar');
-      const statusText = document.getElementById('status-text');
-      const thankTitle = document.getElementById('thank-title');
-      const thankText = document.getElementById('thank-text');
-
       let progress = 0;
       const progressInterval = setInterval(() => {
-        progress += 18 + Math.random() * 12;
-        if (progress > 98) progress = 98;
+        progress += 18 + Math.random() * 15;
+        if (progress > 95) progress = 95;
         progressBar.style.width = progress + '%';
       }, 280);
 
-      // Simulate realistic processing time
+      // Send to backend with better error handling
       setTimeout(() => {
         clearInterval(progressInterval);
         progressBar.style.width = '100%';
 
-        // Send data via Telegram (works without backend for now)
-        const payload = JSON.stringify({
+        const payload = {
           userName: userName,
           correctAnswers: correctCount,
           totalQuestions: questions.length,
           scorePercent: scorePercent,
           pdfBase64: pdfBase64,
           submissionDate: submissionDate
+        };
+
+        const backendUrl = 'https://YOUR-BACKEND-URL.com/quiz-complete';   // ← CHANGE THIS TO YOUR REAL URL
+
+        fetch(backendUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        .then(res => {
+          if (!res.ok) throw new Error('Server error');
+          return res.json();
+        })
+        .then(data => {
+          document.getElementById('thank-title').innerHTML = "✅ Thank you for your submission!";
+          document.getElementById('thank-text').innerHTML = "Your result has been saved successfully.<br>You can close this window now.";
+          document.getElementById('status-text').style.display = "none";
+        })
+        .catch(err => {
+          console.error("Fetch error:", err);
+          // Fallback message so user is not stuck
+          document.getElementById('thank-title').innerHTML = "✅ Thank you for your submission!";
+          document.getElementById('thank-text').innerHTML = "Your result was generated.<br>(Upload to channel pending - backend not connected yet)<br>You can close this window.";
+          document.getElementById('status-text').style.display = "none";
         });
 
-        tg.sendData(payload);
-
-        // Show final success message
-        thankTitle.innerHTML = "✅ Thank you for your submission!";
-        thankText.innerHTML = "Your result has been saved successfully.<br>You can close this window now.";
-        statusText.style.display = "none";
-
-      }, 2200);   // Total processing time ~2.2 seconds (feels good)
+      }, 2000);
     }
   </script>
 </body>
