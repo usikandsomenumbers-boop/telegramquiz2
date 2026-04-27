@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Quiz</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f0f;
+      color: white;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 420px;
+      margin: 40px auto 0;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    p {
+      color: #aaaaaa;
+      margin-bottom: 30px;
+    }
+    input {
+      width: 100%;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      background: #1f1f1f;
+      color: white;
+      border: none;
+      border-radius: 16px;
+      font-size: 17px;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
+      padding: 16px 20px;
+      background: #229ED9;
+      color: white;
+      border: none;
+      border-radius: 16px;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:active {
+      background: #1a8ac4;
+    }
+
+    /* Progress Bar */
+    #progress-container {
+      height: 12px;
+      background: #333;
+      border-radius: 10px;
+      margin: 20px 0;
+      overflow: hidden;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(to right, #4CAF50, #ffeb3b, #ff4444);
+      transition: width 0.2s linear;
+    }
+    .option {
+      background: #1f1f1f;
+      margin: 10px 0;
+      padding: 16px;
+      border-radius: 12px;
+      text-align: left;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Name Screen -->
+  <div id="name-screen" class="container">
+    <h1>📝 Quiz</h1>
+    <p>Please enter your full name to start</p>
+    
+    <input id="user-name" type="text" placeholder="Your Full Name">
+    
+    <button onclick="startQuiz()">Start Quiz</button>
+  </div>
+
+  <!-- Quiz Screen -->
+  <div id="quiz-screen" style="display: none;" class="container">
+    <h2 id="question-text"></h2>
+    
+    <div id="progress-container">
+      <div id="progress-bar"></div>
+    </div>
+    
+    <div id="options"></div>
+  </div>
+
+  <!-- Thank You Screen -->
+  <div id="thank-screen" style="display: none;" class="container">
+    <h1>✅ Thank you!</h1>
+    <p>Your answers have been submitted.</p>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    let userName = '';
+    let currentQuestion = 0;
+    let timerInterval;
+    let answers = [];
+
+    // ================== YOUR QUESTIONS ==================
+    const questions = [
+      {
+        q: "It is only a test please press correct answer to test it out at the end",
+        options: ["correct", "incorrect"],
+        correct: 0
+      },
+      {
+        q: "What is the capital of Uzbekistan?",
+        options: ["Tashkent", "Samarkand", "Bukhara", "Andijan"],
+        correct: 0
+      },
+      {
+        q: "What is 15 + 15?",
+        options: ["25", "30", "20", "35"],
+        correct: 1
+      },
+      {
+        q: "Will I get bonus for it? 😊",
+        options: ["Yes", "No", "Maybe"],
+        correct: 0
+      }
+    ];
+    // ===================================================
+
+    function startQuiz() {
+      userName = document.getElementById('user-name').value.trim();
+      if (!userName) {
+        alert("Name is required!");
+        return;
+      }
+      document.getElementById('name-screen').style.display = 'none';
+      document.getElementById('quiz-screen').style.display = 'block';
+      loadQuestion();
+    }
+
+    function loadQuestion() {
+      if (currentQuestion >= questions.length) {
+        submitAutomatically();
+        return;
+      }
+
+      const q = questions[currentQuestion];
+      document.getElementById('question-text').innerText = `${currentQuestion + 1}. ${q.q}`;
+
+      const optsDiv = document.getElementById('options');
+      optsDiv.innerHTML = '';
+
+      q.options.forEach((opt, i) => {
+        const btn = document.createElement('div');
+        btn.className = 'option';
+        btn.innerText = opt;
+        btn.onclick = () => selectAnswer(i);
+        optsDiv.appendChild(btn);
+      });
+
+      startProgressBar();
+    }
+
+    function startProgressBar() {
+      const progressBar = document.getElementById('progress-bar');
+      let timeLeft = 10;
+      progressBar.style.width = '100%';
+
+      clearInterval(timerInterval);
+
+      timerInterval = setInterval(() => {
+        timeLeft -= 0.1;
+        const percentage = (timeLeft / 15) * 100;
+        progressBar.style.width = percentage + '%';
+
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          answers.push({ qIndex: currentQuestion, answer: null, correct: false });
+          currentQuestion++;
+          loadQuestion();
+        }
+      }, 100);
+    }
+
+    function selectAnswer(selected) {
+      clearInterval(timerInterval);
+      const q = questions[currentQuestion];
+      const isCorrect = selected === q.correct;
+
+      answers.push({
+        qIndex: currentQuestion,
+        answer: q.options[selected],
+        correct: isCorrect
+      });
+
+      currentQuestion++;
+      loadQuestion();
+    }
+
+    function submitAutomatically() {
+      document.getElementById('quiz-screen').style.display = 'none';
+      document.getElementById('thank-screen').style.display = 'block';
+      generateAndSendPDF();
+    }
+
+    function generateAndSendPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFontSize(18);
+      doc.text(`Quiz Submission - ${userName}`, 20, 20);
+
+      doc.setFontSize(12);
+      let y = 40;
+
+      answers.forEach((ans, i) => {
+        const q = questions[i];
+        doc.text(`${i+1}. ${q.q}`, 20, y);
+        y += 10;
+        doc.text(`Answer: ${ans.answer || '⏰ Time expired'}`, 30, y);
+        y += 10;
+        doc.text(`Correct: ${q.options[q.correct]}`, 30, y);
+        y += 15;
+      });
+
+      const pdfBase64 = doc.output('datauristring').split(',')[1];
+
+      const payload = JSON.stringify({
+        userName: userName,
+        answers: answers,
+        totalQuestions: questions.length,
+        pdfBase64: pdfBase64
+      });
+
+      tg.sendData(payload);
+      tg.close();
+    }
+  </script>
+</body>
+</html>
