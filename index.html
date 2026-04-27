@@ -26,7 +26,7 @@
     }
     p {
       color: #aaaaaa;
-      margin-bottom: 30px;
+      margin-bottom: 20px;
     }
     input {
       width: 100%;
@@ -54,21 +54,6 @@
       background: #1a8ac4;
     }
 
-    /* Progress Bar */
-    #progress-container {
-      height: 12px;
-      background: #333;
-      border-radius: 10px;
-      margin: 20px 0;
-      overflow: hidden;
-    }
-    #progress-bar {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(to right, #229ED9, #4CAF50);
-      transition: width 0.4s ease;
-    }
-
     .option {
       background: #1f1f1f;
       margin: 10px 0;
@@ -79,15 +64,23 @@
       cursor: pointer;
     }
 
-    /* Thank You Screen Improvements */
-    #thank-screen .status {
-      margin: 30px 0;
-      font-size: 17px;
-      color: #aaaaaa;
+    #progress-container {
+      height: 12px;
+      background: #333;
+      border-radius: 10px;
+      margin: 25px 0;
+      overflow: hidden;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(to right, #229ED9, #4CAF50);
+      transition: width 0.4s ease;
     }
   </style>
 </head>
 <body>
+
   <!-- Name Screen -->
   <div id="name-screen" class="container">
     <h1>📝 Quiz</h1>
@@ -107,15 +100,13 @@
 
   <!-- Thank You / Processing Screen -->
   <div id="thank-screen" style="display: none;" class="container">
-    <h1 id="thank-title">✅ Test Submitted</h1>
-    <p id="thank-text">Please wait while we prepare your result...</p>
+    <h1 id="thank-title">Processing...</h1>
+    <p id="thank-text">Please wait while we save your result</p>
     
-    <div id="processing-area">
-      <div id="progress-container">
-        <div id="progress-bar" style="width: 0%;"></div>
-      </div>
-      <p class="status" id="status-text">Processing your answers...</p>
+    <div id="progress-container">
+      <div id="progress-bar"></div>
     </div>
+    <p id="status-text" style="color:#aaa; margin-top:15px;">Saving answers & generating PDF...</p>
   </div>
 
   <script>
@@ -190,9 +181,7 @@
 
       timerInterval = setInterval(() => {
         timeLeft -= 0.1;
-        const percentage = (timeLeft / 10) * 100;
-        progressBar.style.width = percentage + '%';
-
+        progressBar.style.width = (timeLeft / 10 * 100) + '%';
         if (timeLeft <= 0) {
           clearInterval(timerInterval);
           answers.push({ qIndex: currentQuestion, answer: null, correct: false });
@@ -205,14 +194,11 @@
     function selectAnswer(selected) {
       clearInterval(timerInterval);
       const q = questions[currentQuestion];
-      const isCorrect = selected === q.correct;
-
       answers.push({
         qIndex: currentQuestion,
         answer: q.options[selected],
-        correct: isCorrect
+        correct: selected === q.correct
       });
-
       currentQuestion++;
       loadQuestion();
     }
@@ -223,7 +209,7 @@
       generateAndSendPDF();
     }
 
-    // ================== IMPROVED PDF + PROGRESS ==================
+    // ================== PDF GENERATOR + PROGRESS ==================
     function generateAndSendPDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
@@ -239,7 +225,7 @@
       const correctCount = answers.filter(ans => ans.correct === true).length;
       const scorePercent = Math.round((correctCount / questions.length) * 100);
 
-      // === Create PDF ===
+      // Create PDF
       doc.setFontSize(22);
       doc.text("📋 Quiz Result", 105, 25, { align: "center" });
 
@@ -253,10 +239,9 @@
       doc.line(20, 80, 190, 80);
 
       let y = 95;
-
       answers.forEach((ans, i) => {
         const q = questions[i];
-        const isCorrect = ans.correct === true;
+        const isCorrect = ans.correct;
         const userAnswer = ans.answer || "⏰ Time expired";
 
         doc.setFontSize(12);
@@ -290,29 +275,25 @@
 
       const pdfBase64 = doc.output('datauristring').split(',')[1];
 
-      // === Show Progress ===
+      // === Progress Animation ===
       const progressBar = document.getElementById('progress-bar');
       const statusText = document.getElementById('status-text');
       const thankTitle = document.getElementById('thank-title');
       const thankText = document.getElementById('thank-text');
 
-      thankTitle.textContent = "Processing...";
-      thankText.textContent = "Please wait while we save your result";
-
       let progress = 0;
       const progressInterval = setInterval(() => {
-        progress += Math.random() * 25 + 10; // random but smooth progress
-        if (progress > 95) progress = 95;
+        progress += 18 + Math.random() * 12;
+        if (progress > 98) progress = 98;
         progressBar.style.width = progress + '%';
-      }, 300);
+      }, 280);
 
-      // Simulate processing + send data
+      // Simulate realistic processing time
       setTimeout(() => {
         clearInterval(progressInterval);
         progressBar.style.width = '100%';
 
-        // Here you can later add fetch() to your backend
-        // For now we just use tg.sendData
+        // Send data via Telegram (works without backend for now)
         const payload = JSON.stringify({
           userName: userName,
           correctAnswers: correctCount,
@@ -324,20 +305,12 @@
 
         tg.sendData(payload);
 
-        // Final success message
-        setTimeout(() => {
-          thankTitle.innerHTML = "✅ Test Submitted Successfully";
-          thankText.innerHTML = "Your result has been saved.<br>Thank you!";
-          statusText.style.display = "none";
-          progressBar.parentElement.style.display = "none";
+        // Show final success message
+        thankTitle.innerHTML = "✅ Thank you for your submission!";
+        thankText.innerHTML = "Your result has been saved successfully.<br>You can close this window now.";
+        statusText.style.display = "none";
 
-          // Close Mini App after user sees success
-          setTimeout(() => {
-            tg.close();
-          }, 1800);
-        }, 600);
-
-      }, 1600); // total "processing" time ~2.2 seconds (feels natural)
+      }, 2200);   // Total processing time ~2.2 seconds (feels good)
     }
   </script>
 </body>
