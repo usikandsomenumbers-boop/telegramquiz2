@@ -53,6 +53,349 @@
     button:active {
       background: #1a8ac4;
     }
+
+    /* Progress Bar */
+    #progress-container {
+      height: 12px;
+      background: #333;
+      border-radius: 10px;
+      margin: 20px 0;
+      overflow: hidden;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(to right, #229ED9, #4CAF50);
+      transition: width 0.4s ease;
+    }
+
+    .option {
+      background: #1f1f1f;
+      margin: 10px 0;
+      padding: 16px;
+      border-radius: 12px;
+      text-align: left;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    /* Thank You Screen Improvements */
+    #thank-screen .status {
+      margin: 30px 0;
+      font-size: 17px;
+      color: #aaaaaa;
+    }
+  </style>
+</head>
+<body>
+  <!-- Name Screen -->
+  <div id="name-screen" class="container">
+    <h1>📝 Quiz</h1>
+    <p>Please enter your full name to start</p>
+    <input id="user-name" type="text" placeholder="Your Full Name">
+    <button onclick="startQuiz()">Start Quiz</button>
+  </div>
+
+  <!-- Quiz Screen -->
+  <div id="quiz-screen" style="display: none;" class="container">
+    <h2 id="question-text"></h2>
+    <div id="progress-container">
+      <div id="progress-bar"></div>
+    </div>
+    <div id="options"></div>
+  </div>
+
+  <!-- Thank You / Processing Screen -->
+  <div id="thank-screen" style="display: none;" class="container">
+    <h1 id="thank-title">✅ Test Submitted</h1>
+    <p id="thank-text">Please wait while we prepare your result...</p>
+    
+    <div id="processing-area">
+      <div id="progress-container">
+        <div id="progress-bar" style="width: 0%;"></div>
+      </div>
+      <p class="status" id="status-text">Processing your answers...</p>
+    </div>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    let userName = '';
+    let currentQuestion = 0;
+    let timerInterval;
+    let answers = [];
+
+    const questions = [
+      {
+        q: "It is only a test please press correct answer to test it out at the end",
+        options: ["correct", "incorrect"],
+        correct: 0
+      },
+      {
+        q: "What is the capital of Uzbekistan?",
+        options: ["Tashkent", "Samarkand", "Bukhara", "Andijan"],
+        correct: 0
+      },
+      {
+        q: "What is 15 + 15?",
+        options: ["25", "30", "20", "35"],
+        correct: 1
+      },
+      {
+        q: "Will I get bonus for it? 😊",
+        options: ["Yes", "No", "Maybe", "Only if I smile"],
+        correct: 0
+      }
+    ];
+
+    function startQuiz() {
+      userName = document.getElementById('user-name').value.trim();
+      if (!userName) {
+        alert("Name is required!");
+        return;
+      }
+      document.getElementById('name-screen').style.display = 'none';
+      document.getElementById('quiz-screen').style.display = 'block';
+      loadQuestion();
+    }
+
+    function loadQuestion() {
+      if (currentQuestion >= questions.length) {
+        submitAutomatically();
+        return;
+      }
+      const q = questions[currentQuestion];
+      document.getElementById('question-text').innerText = `${currentQuestion + 1}. ${q.q}`;
+
+      const optsDiv = document.getElementById('options');
+      optsDiv.innerHTML = '';
+      q.options.forEach((opt, i) => {
+        const btn = document.createElement('div');
+        btn.className = 'option';
+        btn.innerText = opt;
+        btn.onclick = () => selectAnswer(i);
+        optsDiv.appendChild(btn);
+      });
+      startProgressBar();
+    }
+
+    function startProgressBar() {
+      const progressBar = document.getElementById('progress-bar');
+      let timeLeft = 10;
+      progressBar.style.width = '100%';
+      clearInterval(timerInterval);
+
+      timerInterval = setInterval(() => {
+        timeLeft -= 0.1;
+        const percentage = (timeLeft / 10) * 100;
+        progressBar.style.width = percentage + '%';
+
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          answers.push({ qIndex: currentQuestion, answer: null, correct: false });
+          currentQuestion++;
+          loadQuestion();
+        }
+      }, 100);
+    }
+
+    function selectAnswer(selected) {
+      clearInterval(timerInterval);
+      const q = questions[currentQuestion];
+      const isCorrect = selected === q.correct;
+
+      answers.push({
+        qIndex: currentQuestion,
+        answer: q.options[selected],
+        correct: isCorrect
+      });
+
+      currentQuestion++;
+      loadQuestion();
+    }
+
+    function submitAutomatically() {
+      document.getElementById('quiz-screen').style.display = 'none';
+      document.getElementById('thank-screen').style.display = 'block';
+      generateAndSendPDF();
+    }
+
+    // ================== IMPROVED PDF + PROGRESS ==================
+    function generateAndSendPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      const submissionDate = new Date().toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const correctCount = answers.filter(ans => ans.correct === true).length;
+      const scorePercent = Math.round((correctCount / questions.length) * 100);
+
+      // === Create PDF ===
+      doc.setFontSize(22);
+      doc.text("📋 Quiz Result", 105, 25, { align: "center" });
+
+      doc.setFontSize(14);
+      doc.text(`Name: ${userName}`, 20, 45);
+      doc.text(`Submitted: ${submissionDate}`, 20, 55);
+      doc.setFontSize(16);
+      doc.text(`Score: ${correctCount} / ${questions.length} (${scorePercent}%)`, 20, 70);
+
+      doc.setDrawColor(100);
+      doc.line(20, 80, 190, 80);
+
+      let y = 95;
+
+      answers.forEach((ans, i) => {
+        const q = questions[i];
+        const isCorrect = ans.correct === true;
+        const userAnswer = ans.answer || "⏰ Time expired";
+
+        doc.setFontSize(12);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`${i + 1}. ${q.q}`, 20, y);
+        y += 10;
+
+        doc.setFontSize(11);
+        if (isCorrect) {
+          doc.setTextColor(0, 180, 0);
+          doc.text(`Your Answer: ${userAnswer}  ✓`, 25, y);
+        } else {
+          doc.setTextColor(220, 50, 50);
+          doc.text(`Your Answer: ${userAnswer}  ✕`, 25, y);
+        }
+        y += 9;
+
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Correct Answer: ${q.options[q.correct]}`, 25, y);
+        y += 18;
+
+        if (y > 270) {
+          doc.addPage();
+          y = 30;
+        }
+      });
+
+      doc.setFontSize(10);
+      doc.setTextColor(140);
+      doc.text("Thank you for participating!", 105, 290, { align: "center" });
+
+      const pdfBase64 = doc.output('datauristring').split(',')[1];
+
+      // === Show Progress ===
+      const progressBar = document.getElementById('progress-bar');
+      const statusText = document.getElementById('status-text');
+      const thankTitle = document.getElementById('thank-title');
+      const thankText = document.getElementById('thank-text');
+
+      thankTitle.textContent = "Processing...";
+      thankText.textContent = "Please wait while we save your result";
+
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress += Math.random() * 25 + 10; // random but smooth progress
+        if (progress > 95) progress = 95;
+        progressBar.style.width = progress + '%';
+      }, 300);
+
+      // Simulate processing + send data
+      setTimeout(() => {
+        clearInterval(progressInterval);
+        progressBar.style.width = '100%';
+
+        // Here you can later add fetch() to your backend
+        // For now we just use tg.sendData
+        const payload = JSON.stringify({
+          userName: userName,
+          correctAnswers: correctCount,
+          totalQuestions: questions.length,
+          scorePercent: scorePercent,
+          pdfBase64: pdfBase64,
+          submissionDate: submissionDate
+        });
+
+        tg.sendData(payload);
+
+        // Final success message
+        setTimeout(() => {
+          thankTitle.innerHTML = "✅ Test Submitted Successfully";
+          thankText.innerHTML = "Your result has been saved.<br>Thank you!";
+          statusText.style.display = "none";
+          progressBar.parentElement.style.display = "none";
+
+          // Close Mini App after user sees success
+          setTimeout(() => {
+            tg.close();
+          }, 1800);
+        }, 600);
+
+      }, 1600); // total "processing" time ~2.2 seconds (feels natural)
+    }
+  </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Quiz</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f0f;
+      color: white;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 420px;
+      margin: 40px auto 0;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    p {
+      color: #aaaaaa;
+      margin-bottom: 30px;
+    }
+    input {
+      width: 100%;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      background: #1f1f1f;
+      color: white;
+      border: none;
+      border-radius: 16px;
+      font-size: 17px;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
+      padding: 16px 20px;
+      background: #229ED9;
+      color: white;
+      border: none;
+      border-radius: 16px;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:active {
+      background: #1a8ac4;
+    }
     /* Progress Bar */
     #progress-container {
       height: 12px;
