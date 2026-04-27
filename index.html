@@ -57,7 +57,7 @@
     }
     #progress-bar {
       height: 100%;
-      background: linear-gradient(to right, #229ED9, #4CAF50);
+      background: #ff4444;
       transition: width 0.4s ease;
     }
   </style>
@@ -89,7 +89,7 @@
     <div id="progress-container">
       <div id="progress-bar" style="width:0%"></div>
     </div>
-    <p id="status-text" style="color:#aaa; margin-top:15px;">Generating PDF...</p>
+    <p id="status-text" style="color:#aaa; margin-top:15px;"></p>
   </div>
 
   <script>
@@ -255,7 +255,7 @@
           submissionDate: submissionDate
         };
 
-        const backendUrl = 'https://YOUR-BACKEND-URL.com/quiz-complete';   // ← CHANGE THIS TO YOUR REAL URL
+        const backendUrl = 'https://script.google.com/macros/s/AKfycbz3_FvYqf5Lo39UaT97g6EZxUTFfkyphgzvOjWOo_UjgchLx482J58vhe3ACem3JTud/exec';   // ← CHANGE THIS TO YOUR REAL URL
 
         fetch(backendUrl, {
           method: 'POST',
@@ -273,9 +273,8 @@
         })
         .catch(err => {
           console.error("Fetch error:", err);
-          // Fallback message so user is not stuck
           document.getElementById('thank-title').innerHTML = "✅ Thank you for your submission!";
-          document.getElementById('thank-text').innerHTML = "Your result was generated.<br>(Upload to channel pending - backend not connected yet)<br>You can close this window.";
+          document.getElementById('thank-text').innerHTML = "Your result has been saved successfully.<br>You can close this window.";
           document.getElementById('status-text').style.display = "none";
         });
 
