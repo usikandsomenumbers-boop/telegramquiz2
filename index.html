@@ -145,7 +145,7 @@
       ]
     };
 
-    // Try to send on close / background
+    // Auto-submit when user closes the mini app
     window.addEventListener('pagehide', () => { if (quizStarted) autoSubmitOnClose(); });
     window.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden' && quizStarted) autoSubmitOnClose();
@@ -177,11 +177,13 @@
         submitQuiz();
         return;
       }
+
       const q = qs[currentQuestion];
       document.getElementById('question-text').innerText = `${currentQuestion + 1}. ${q.q}`;
 
       const optsDiv = document.getElementById('options');
       optsDiv.innerHTML = '';
+
       q.options.forEach((opt, i) => {
         const btn = document.createElement('div');
         btn.className = 'option';
@@ -202,6 +204,7 @@
       timerInterval = setInterval(() => {
         timeLeft -= 0.1;
         bar.style.width = Math.max(0, (timeLeft / 15) * 100) + '%';
+
         if (timeLeft <= 0) {
           clearInterval(timerInterval);
           answers.push({ qIndex: currentQuestion, answer: null, correct: false });
@@ -230,24 +233,24 @@
       if (!quizStarted) return;
       document.getElementById('quiz-screen').style.display = 'none';
       document.getElementById('thank-screen').style.display = 'block';
-      fillUnanswered();
-      generateAndSend(false);
+      fillUnansweredQuestions();
+      sendToGoogle(false);
     }
 
-    function fillUnanswered() {
+    function autoSubmitOnClose() {
+      if (!quizStarted) return;
+      fillUnansweredQuestions();
+      sendToGoogle(true);
+    }
+
+    function fillUnansweredQuestions() {
       const total = questionsByDifficulty[selectedDifficulty].length;
       while (answers.length < total) {
         answers.push({ qIndex: answers.length, answer: null, correct: false });
       }
     }
 
-    function autoSubmitOnClose() {
-      if (!quizStarted) return;
-      fillUnanswered();
-      generateAndSend(true);
-    }
-
-    function generateAndSend(isForced) {
+    function sendToGoogle(isForced) {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF('p', 'mm', 'a4');
       const submissionDate = new Date().toLocaleString('en-US', {
@@ -258,37 +261,52 @@
       const correctCount = answers.filter(a => a.correct === true).length;
       const scorePercent = Math.round((correctCount / qs.length) * 100);
 
-      // Create PDF
+      // PDF Creation
       doc.setFillColor(34, 158, 217);
       doc.rect(0, 0, 210, 45, 'F');
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
-      doc.text(`${selectedDifficulty.toUpperCase()} QUIZ RESULT`, 105, 30, { align: "center" });
+      doc.setFontSize(24);
+      doc.text(`${selectedDifficulty.toUpperCase()} QUIZ RESULT`, 105, 28, { align: "center" });
 
       doc.setTextColor(0, 0, 0);
-      doc.setFontSize(14);
-      doc.text(`Name: ${userName}`, 20, 65);
+      doc.setFontSize(16);
+      doc.text(`Participant: ${userName}`, 20, 65);
       doc.text(`Difficulty: ${selectedDifficulty}`, 20, 75);
-      if (isForced) doc.text("⚠️ Quiz was closed early", 20, 85);
+      doc.text(`Submitted: ${submissionDate}`, 20, 85);
 
+      if (isForced) {
+        doc.setTextColor(200, 50, 50);
+        doc.text("⚠️ Quiz closed before completion", 20, 100);
+      }
+
+      doc.setFillColor(240, 240, 240);
+      doc.rect(20, 115, 170, 35, 'F');
+      doc.setFontSize(18);
       doc.setTextColor(34, 158, 217);
-      doc.text(`Score: ${correctCount}/${qs.length} (${scorePercent}%)`, 105, 105, { align: "center" });
+      doc.text(`Score: ${correctCount}/${qs.length} (${scorePercent}%)`, 105, 133, { align: "center" });
 
-      let y = 130;
+      let y = 165;
       answers.forEach((ans, i) => {
         const q = qs[i];
-        const userAns = ans.answer || "⏰ Not Answered";
+        const userAnswer = ans.answer || "⏰ Not Answered";
+
+        const questionLines = doc.splitTextToSize(`${i+1}. ${q.q}`, 170);
+        doc.text(questionLines, 20, y);
+        y += questionLines.length * 8;
+
         doc.setFontSize(11);
-        doc.setTextColor(0,0,0);
-        doc.text(`${i+1}. ${q.q}`, 20, y);
-        y += 10;
         doc.setTextColor(ans.correct ? 0 : 200, ans.correct ? 150 : 50, 0);
-        doc.text(ans.correct ? `✓ ${userAns}` : `✕ ${userAns}`, 25, y);
-        y += 10;
-        doc.setTextColor(80,80,80);
+        doc.text(ans.correct ? `✓ ${userAnswer}` : `✕ ${userAnswer}`, 25, y);
+        y += 12;
+
+        doc.setTextColor(80, 80, 80);
         doc.text(`Correct: ${q.options[q.correct]}`, 25, y);
-        y += 18;
-        if (y > 270) { doc.addPage(); y = 30; }
+        y += 20;
+
+        if (y > 270) {
+          doc.addPage();
+          y = 30;
+        }
       });
 
       const pdfBase64 = doc.output('datauristring').split(',')[1];
@@ -304,25 +322,20 @@
         completed: !isForced
       };
 
-      const jsonData = JSON.stringify(payload);
-      const blob = new Blob([jsonData], { type: 'application/json' });
+      const jsonString = JSON.stringify(payload);
+      const blob = new Blob([jsonString], { type: 'application/json' });
 
-      // Try sendBeacon (best for close)
+      // Best effort to send when closing
       navigator.sendBeacon(GOOGLE_SCRIPT_URL, blob);
 
-      // Fallback fetch with keepalive
+      // Fallback
       fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: jsonData,
+        body: jsonString,
         keepalive: true,
         mode: 'no-cors'
       }).catch(() => {});
-    }
-
-    function showThankYou() {
-      document.getElementById('thank-title').innerHTML = "✅ Thank you!";
-      document.getElementById('thank-text').innerHTML = "Your result has been recorded.<br>You can close this window now.";
     }
   </script>
 </body>
