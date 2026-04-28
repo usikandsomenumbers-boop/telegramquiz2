@@ -1,9 +1,125 @@
-<script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ELD Quiz</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f0f;
+      color: white;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+      min-height: 100vh;
+    }
+    .container { max-width: 420px; margin: 40px auto 0; }
+    h1 { font-size: 28px; margin-bottom: 8px; }
+    p { color: #aaaaaa; margin-bottom: 20px; }
+    input, button {
+      width: 100%;
+      padding: 16px 20px;
+      margin-bottom: 15px;
+      border-radius: 16px;
+      font-size: 17px;
+      box-sizing: border-box;
+    }
+    input { background: #1f1f1f; color: white; border: none; }
+    button {
+      background: #229ED9;
+      color: white;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:active { background: #1a8ac4; }
+    .difficulty-btn {
+      background: #1f1f1f;
+      color: white;
+      font-size: 18px;
+      padding: 18px;
+      margin: 12px 0;
+      border-radius: 16px;
+      font-weight: 500;
+    }
+    .difficulty-btn.medium { border-left: 6px solid #FF9800; }
+    .difficulty-btn.hard { border-left: 6px solid #F44336; }
+    .option {
+      background: #1f1f1f;
+      margin: 10px 0;
+      padding: 16px;
+      border-radius: 12px;
+      text-align: left;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .option:hover { background: #2a2a2a; }
+    #progress-container {
+      height: 12px;
+      background: #333;
+      border-radius: 10px;
+      margin: 25px 0;
+      overflow: hidden;
+    }
+    #progress-bar {
+      height: 100%;
+      background: #ff4444;
+      transition: width 0.4s ease;
+    }
+    .finish-btn {
+      background: #4CAF50;
+      margin-top: 20px;
+      padding: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Name Screen -->
+  <div id="name-screen" class="container">
+    <h1>📝 ELD Quiz</h1>
+    <p>Please enter your full name</p>
+    <input id="user-name" type="text" placeholder="Your Full Name">
+    <button onclick="showDifficultyScreen()">Continue</button>
+  </div>
+
+  <!-- Difficulty Screen -->
+  <div id="difficulty-screen" class="container" style="display: none;">
+    <h1>Choose Difficulty</h1>
+    <p>Select your level</p>
+    <button class="difficulty-btn medium" onclick="startQuiz('medium')">🟠 Medium</button>
+    <button class="difficulty-btn hard" onclick="startQuiz('hard')">🔴 Hard</button>
+  </div>
+
+  <!-- Quiz Screen -->
+  <div id="quiz-screen" style="display: none;" class="container">
+    <h2 id="question-text"></h2>
+    <div id="progress-container">
+      <div id="progress-bar" style="width:100%"></div>
+    </div>
+    <div id="options"></div>
+    <p style="color:#666; margin-top:15px;">Difficulty: <span id="current-difficulty"></span></p>
+    <button class="finish-btn" onclick="submitQuiz()">Finish Quiz Early</button>
+  </div>
+
+  <!-- Thank You Screen -->
+  <div id="thank-screen" style="display: none;" class="container">
+    <h1 id="thank-title">Processing...</h1>
+    <p id="thank-text">Please wait while we save your result</p>
+  </div>
+
+  <script>
     const tg = window.Telegram.WebApp;
     tg.ready();
     tg.expand();
 
+    // ================== UPDATED GOOGLE SCRIPT URL ==================
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyMdneH__zX-tO5ljqaGrWUswbG-ep0qa-vPgJYAujB/dev";
+    // ==============================================================
 
     let userName = '';
     let currentQuestion = 0;
@@ -13,13 +129,25 @@
     let quizStarted = false;
 
     const questionsByDifficulty = {
-      medium: [ /* Paste all your 30 medium questions here */ ],
+      medium: [
+        { q: "You arrive at a scale and an officer approaches your truck. Your status is OFF duty. What should you do first?",
+          options: ["Stay OFF duty", "Switch to On Duty immediately", "Switch to Sleeper Berth", "Start driving"],
+          correct: 1 },
+        { q: "Your ELD freezes while driving. What is the correct action?",
+          options: ["Keep driving and fix later", "Restart and continue without logs", "Switch to paper logs and notify company", "Ignore it"],
+          correct: 2 },
+        // ... ADD ALL YOUR OTHER MEDIUM QUESTIONS HERE ...
+        { q: "DOT officer sees multiple log errors. Likely outcome?",
+          options: ["Nothing", "Warning only", "Fines / out-of-service risk", "Reward"],
+          correct: 2 }
+      ],
       hard: []
     };
 
     function showDifficultyScreen() {
       userName = document.getElementById('user-name').value.trim();
       if (!userName) return alert("Please enter your full name!");
+      
       document.getElementById('name-screen').style.display = 'none';
       document.getElementById('difficulty-screen').style.display = 'block';
     }
@@ -32,7 +160,8 @@
 
       document.getElementById('difficulty-screen').style.display = 'none';
       document.getElementById('quiz-screen').style.display = 'block';
-      document.getElementById('current-difficulty').innerText = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+      document.getElementById('current-difficulty').innerText = 
+        difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
 
       loadQuestion();
     }
@@ -49,6 +178,7 @@
 
       const optsDiv = document.getElementById('options');
       optsDiv.innerHTML = '';
+
       q.options.forEach((opt, i) => {
         const btn = document.createElement('div');
         btn.className = 'option';
@@ -68,10 +198,10 @@
 
       timerInterval = setInterval(() => {
         timeLeft -= 0.1;
-        bar.style.width = Math.max(0, timeLeft / 15 * 100) + '%';
+        bar.style.width = (timeLeft / 15 * 100) + '%';
         if (timeLeft <= 0) {
           clearInterval(timerInterval);
-          answers.push({qIndex: currentQuestion, answer: null, correct: false});
+          answers.push({ qIndex: currentQuestion, answer: null, correct: false });
           currentQuestion++;
           loadQuestion();
         }
@@ -102,7 +232,7 @@
       // Fill unanswered questions
       const total = questionsByDifficulty[selectedDifficulty].length;
       while (answers.length < total) {
-        answers.push({qIndex: answers.length, answer: null, correct: false});
+        answers.push({ qIndex: answers.length, answer: null, correct: false });
       }
 
       generateAndSendPDF();
@@ -111,32 +241,57 @@
     function generateAndSendPDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF('p', 'mm', 'a4');
-      const submissionDate = new Date().toLocaleString('en-US', {year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit'});
+      const submissionDate = new Date().toLocaleString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
 
       const qs = questionsByDifficulty[selectedDifficulty];
-      const correctCount = answers.filter(a => a.correct).length;
+      const correctCount = answers.filter(a => a.correct === true).length;
       const scorePercent = Math.round((correctCount / qs.length) * 100);
 
-      // PDF creation code (same as before - I kept it short here)
+      // PDF Generation
       doc.setFillColor(34, 158, 217);
       doc.rect(0, 0, 210, 45, 'F');
-      doc.setTextColor(255,255,255);
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(24);
-      doc.text(`${selectedDifficulty.toUpperCase()} QUIZ RESULT`, 105, 28, {align:"center"});
+      doc.text(`${selectedDifficulty.toUpperCase()} QUIZ RESULT`, 105, 28, { align: "center" });
 
-      doc.setTextColor(0,0,0);
+      doc.setTextColor(0, 0, 0);
       doc.setFontSize(16);
       doc.text(`Participant: ${userName}`, 20, 60);
       doc.text(`Difficulty: ${selectedDifficulty}`, 20, 70);
       doc.text(`Submitted: ${submissionDate}`, 20, 80);
 
-      doc.setFillColor(240,240,240);
+      doc.setFillColor(240, 240, 240);
       doc.rect(20, 95, 170, 35, 'F');
       doc.setFontSize(18);
-      doc.setTextColor(34,158,217);
-      doc.text(`Score: ${correctCount}/${qs.length} (${scorePercent}%)`, 105, 113, {align:"center"});
+      doc.setTextColor(34, 158, 217);
+      doc.text(`Score: ${correctCount}/${qs.length} (${scorePercent}%)`, 105, 113, { align: "center" });
 
-      // ... (add the answers loop as in previous version)
+      let y = 145;
+      answers.forEach((ans, i) => {
+        const q = qs[i];
+        const userAnswer = ans.answer || "⏰ Not Answered";
+
+        const questionLines = doc.splitTextToSize(`${i+1}. ${q.q}`, 170);
+        doc.text(questionLines, 20, y);
+        y += questionLines.length * 7.5;
+
+        doc.setFontSize(11);
+        doc.setTextColor(ans.correct ? 0 : 200, ans.correct ? 150 : 50, 0);
+        doc.text(ans.correct ? `✓ ${userAnswer}` : `✕ ${userAnswer}`, 25, y);
+        y += 12;
+
+        doc.setTextColor(80, 80, 80);
+        doc.text(`Correct: ${q.options[q.correct]}`, 25, y);
+        y += 22;
+
+        if (y > 270) {
+          doc.addPage();
+          y = 30;
+        }
+      });
 
       const pdfBase64 = doc.output('datauristring').split(',')[1];
 
@@ -153,7 +308,7 @@
 
       fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
         mode: 'no-cors'
       })
@@ -166,3 +321,5 @@
       document.getElementById('thank-text').innerHTML = "Your result has been recorded.<br>You can close this window now.";
     }
   </script>
+</body>
+</html>
