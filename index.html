@@ -70,11 +70,6 @@
       background: #ff4444;
       transition: width 0.4s ease;
     }
-    .finish-btn {
-      background: #4CAF50;
-      margin-top: 20px;
-      padding: 14px;
-    }
   </style>
 </head>
 <body>
@@ -103,7 +98,6 @@
     </div>
     <div id="options"></div>
     <p style="color:#666; margin-top:15px;">Difficulty: <span id="current-difficulty"></span></p>
-    <button class="finish-btn" onclick="submitQuiz()">Finish Quiz Early</button>
   </div>
 
   <!-- Thank You Screen -->
@@ -117,9 +111,7 @@
     tg.ready();
     tg.expand();
 
-    // ================== UPDATED GOOGLE SCRIPT URL ==================
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyMdneH__zX-tO5ljqaGrWUswbG-ep0qa-vPgJYAujB/dev";
-    // ==============================================================
 
     let userName = '';
     let currentQuestion = 0;
@@ -136,18 +128,32 @@
         { q: "Your ELD freezes while driving. What is the correct action?",
           options: ["Keep driving and fix later", "Restart and continue without logs", "Switch to paper logs and notify company", "Ignore it"],
           correct: 2 },
-        // ... ADD ALL YOUR OTHER MEDIUM QUESTIONS HERE ...
-        { q: "DOT officer sees multiple log errors. Likely outcome?",
-          options: ["Nothing", "Warning only", "Fines / out-of-service risk", "Reward"],
+        { q: "You just finished fueling and forgot to change status from Driving. What should you do?",
+          options: ["Leave it", "Delete the log", "Edit to On Duty (fuel)", "Restart ELD"],
           correct: 2 }
       ],
-      hard: []
+      hard: [
+        { q: "During a roadside inspection, the officer requests your ELD data for the past 7 days but your device only shows current day logs. What is the likely outcome?",
+          options: ["No violation", "HOS violation and possible fine", "Only a warning", "Device must be reset"],
+          correct: 1 },
+        { q: "You are using Personal Conveyance (PC) while your truck is loaded with cargo going to a delivery. Is this allowed?",
+          options: ["Yes, always allowed", "No, this is a violation", "Only if distance is under 10 miles", "Only with dispatcher approval"],
+          correct: 1 },
+        { q: "Your ELD shows a malfunction for more than 24 hours. What must you do according to FMCSA rules?",
+          options: ["Continue driving normally", "Switch to paper logs and repair within 8 days", "Ignore until next inspection", "Buy a new ELD immediately"],
+          correct: 1 }
+      ]
     };
+
+    // Try to send on close / background
+    window.addEventListener('pagehide', () => { if (quizStarted) autoSubmitOnClose(); });
+    window.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && quizStarted) autoSubmitOnClose();
+    });
 
     function showDifficultyScreen() {
       userName = document.getElementById('user-name').value.trim();
       if (!userName) return alert("Please enter your full name!");
-      
       document.getElementById('name-screen').style.display = 'none';
       document.getElementById('difficulty-screen').style.display = 'block';
     }
@@ -160,8 +166,7 @@
 
       document.getElementById('difficulty-screen').style.display = 'none';
       document.getElementById('quiz-screen').style.display = 'block';
-      document.getElementById('current-difficulty').innerText = 
-        difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+      document.getElementById('current-difficulty').innerText = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
 
       loadQuestion();
     }
@@ -172,13 +177,11 @@
         submitQuiz();
         return;
       }
-
       const q = qs[currentQuestion];
       document.getElementById('question-text').innerText = `${currentQuestion + 1}. ${q.q}`;
 
       const optsDiv = document.getElementById('options');
       optsDiv.innerHTML = '';
-
       q.options.forEach((opt, i) => {
         const btn = document.createElement('div');
         btn.className = 'option';
@@ -198,7 +201,7 @@
 
       timerInterval = setInterval(() => {
         timeLeft -= 0.1;
-        bar.style.width = (timeLeft / 15 * 100) + '%';
+        bar.style.width = Math.max(0, (timeLeft / 15) * 100) + '%';
         if (timeLeft <= 0) {
           clearInterval(timerInterval);
           answers.push({ qIndex: currentQuestion, answer: null, correct: false });
@@ -225,72 +228,67 @@
 
     function submitQuiz() {
       if (!quizStarted) return;
-
       document.getElementById('quiz-screen').style.display = 'none';
       document.getElementById('thank-screen').style.display = 'block';
+      fillUnanswered();
+      generateAndSend(false);
+    }
 
-      // Fill unanswered questions
+    function fillUnanswered() {
       const total = questionsByDifficulty[selectedDifficulty].length;
       while (answers.length < total) {
         answers.push({ qIndex: answers.length, answer: null, correct: false });
       }
-
-      generateAndSendPDF();
     }
 
-    function generateAndSendPDF() {
+    function autoSubmitOnClose() {
+      if (!quizStarted) return;
+      fillUnanswered();
+      generateAndSend(true);
+    }
+
+    function generateAndSend(isForced) {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF('p', 'mm', 'a4');
       const submissionDate = new Date().toLocaleString('en-US', {
-        year: 'numeric', month: 'long', day: 'numeric',
-        hour: '2-digit', minute: '2-digit'
+        year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
       });
 
       const qs = questionsByDifficulty[selectedDifficulty];
       const correctCount = answers.filter(a => a.correct === true).length;
       const scorePercent = Math.round((correctCount / qs.length) * 100);
 
-      // PDF Generation
+      // Create PDF
       doc.setFillColor(34, 158, 217);
       doc.rect(0, 0, 210, 45, 'F');
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(24);
-      doc.text(`${selectedDifficulty.toUpperCase()} QUIZ RESULT`, 105, 28, { align: "center" });
+      doc.setFontSize(22);
+      doc.text(`${selectedDifficulty.toUpperCase()} QUIZ RESULT`, 105, 30, { align: "center" });
 
       doc.setTextColor(0, 0, 0);
-      doc.setFontSize(16);
-      doc.text(`Participant: ${userName}`, 20, 60);
-      doc.text(`Difficulty: ${selectedDifficulty}`, 20, 70);
-      doc.text(`Submitted: ${submissionDate}`, 20, 80);
+      doc.setFontSize(14);
+      doc.text(`Name: ${userName}`, 20, 65);
+      doc.text(`Difficulty: ${selectedDifficulty}`, 20, 75);
+      if (isForced) doc.text("⚠️ Quiz was closed early", 20, 85);
 
-      doc.setFillColor(240, 240, 240);
-      doc.rect(20, 95, 170, 35, 'F');
-      doc.setFontSize(18);
       doc.setTextColor(34, 158, 217);
-      doc.text(`Score: ${correctCount}/${qs.length} (${scorePercent}%)`, 105, 113, { align: "center" });
+      doc.text(`Score: ${correctCount}/${qs.length} (${scorePercent}%)`, 105, 105, { align: "center" });
 
-      let y = 145;
+      let y = 130;
       answers.forEach((ans, i) => {
         const q = qs[i];
-        const userAnswer = ans.answer || "⏰ Not Answered";
-
-        const questionLines = doc.splitTextToSize(`${i+1}. ${q.q}`, 170);
-        doc.text(questionLines, 20, y);
-        y += questionLines.length * 7.5;
-
+        const userAns = ans.answer || "⏰ Not Answered";
         doc.setFontSize(11);
+        doc.setTextColor(0,0,0);
+        doc.text(`${i+1}. ${q.q}`, 20, y);
+        y += 10;
         doc.setTextColor(ans.correct ? 0 : 200, ans.correct ? 150 : 50, 0);
-        doc.text(ans.correct ? `✓ ${userAnswer}` : `✕ ${userAnswer}`, 25, y);
-        y += 12;
-
-        doc.setTextColor(80, 80, 80);
+        doc.text(ans.correct ? `✓ ${userAns}` : `✕ ${userAns}`, 25, y);
+        y += 10;
+        doc.setTextColor(80,80,80);
         doc.text(`Correct: ${q.options[q.correct]}`, 25, y);
-        y += 22;
-
-        if (y > 270) {
-          doc.addPage();
-          y = 30;
-        }
+        y += 18;
+        if (y > 270) { doc.addPage(); y = 30; }
       });
 
       const pdfBase64 = doc.output('datauristring').split(',')[1];
@@ -303,17 +301,23 @@
         scorePercent: scorePercent,
         pdfBase64: pdfBase64,
         submissionDate: submissionDate,
-        completed: true
+        completed: !isForced
       };
 
+      const jsonData = JSON.stringify(payload);
+      const blob = new Blob([jsonData], { type: 'application/json' });
+
+      // Try sendBeacon (best for close)
+      navigator.sendBeacon(GOOGLE_SCRIPT_URL, blob);
+
+      // Fallback fetch with keepalive
       fetch(GOOGLE_SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: jsonData,
+        keepalive: true,
         mode: 'no-cors'
-      })
-      .then(() => showThankYou())
-      .catch(() => showThankYou());
+      }).catch(() => {});
     }
 
     function showThankYou() {
