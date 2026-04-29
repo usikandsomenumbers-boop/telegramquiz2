@@ -3,14 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <title>Quiz</title>
+  <title>Knowledge Quiz</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-    :root {
-      --primary: #229ED9;
-    }
+    :root { --primary: #229ED9; }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -18,38 +16,20 @@
       background: linear-gradient(135deg, #0f172a, #1e2937);
       color: white;
       min-height: 100vh;
-      overflow: hidden;
     }
 
-    .container {
-      max-width: 480px;
-      margin: 0 auto;
-      padding: 20px;
-    }
+    .container { max-width: 480px; margin: 0 auto; padding: 20px; }
 
-    .screen {
-      display: none;
-      min-height: 100vh;
-      flex-direction: column;
-    }
-
+    .screen { display: none; min-height: 100vh; flex-direction: column; }
     .active { display: flex; }
+
+    h1 { font-size: 28px; margin-bottom: 10px; text-align: center; }
 
     /* Name Screen */
     #name-screen {
       justify-content: center;
       align-items: center;
       text-align: center;
-    }
-
-    h1 {
-      font-size: 28px;
-      margin-bottom: 10px;
-      color: #fff;
-    }
-
-    .input-group {
-      margin: 30px 0;
     }
 
     input {
@@ -60,10 +40,8 @@
       font-size: 18px;
       background: rgba(255,255,255,0.1);
       color: white;
-      backdrop-filter: blur(10px);
+      margin: 25px 0;
     }
-
-    input::placeholder { color: rgba(255,255,255,0.6); }
 
     button {
       width: 100%;
@@ -75,25 +53,25 @@
       font-size: 18px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.3s;
     }
 
-    button:active {
-      transform: scale(0.98);
-      background: #1e8bc4;
-    }
+    button:active { transform: scale(0.98); }
 
     /* Quiz Screen */
-    #quiz-screen {
-      flex-direction: column;
+    .question-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 16px;
+      margin-bottom: 10px;
+      opacity: 0.9;
     }
 
-    .progress-container {
-      height: 6px;
-      background: rgba(255,255,255,0.1);
+    #progress-bar-container {
+      height: 8px;
+      background: rgba(255,255,255,0.15);
       border-radius: 10px;
-      margin: 15px 0;
       overflow: hidden;
+      margin-bottom: 20px;
     }
 
     #progress-bar {
@@ -101,15 +79,6 @@
       background: linear-gradient(90deg, #22d3ee, #229ED9);
       width: 100%;
       transition: width 0.1s linear;
-    }
-
-    .question-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 15px;
-      font-size: 16px;
-      opacity: 0.9;
     }
 
     #question-text {
@@ -127,18 +96,14 @@
       font-size: 17px;
       cursor: pointer;
       transition: all 0.2s;
-      border: 2px solid transparent;
-    }
-
-    .option:hover {
-      background: rgba(255,255,255,0.15);
     }
 
     .option:active {
+      background: rgba(255,255,255,0.25);
       transform: translateY(2px);
     }
 
-    /* Thank you screen */
+    /* Thank Screen */
     #thank-screen {
       justify-content: center;
       align-items: center;
@@ -146,10 +111,7 @@
       padding: 40px 20px;
     }
 
-    .thank-icon {
-      font-size: 60px;
-      margin-bottom: 20px;
-    }
+    .thank-icon { font-size: 70px; margin-bottom: 20px; }
   </style>
 </head>
 <body>
@@ -158,12 +120,8 @@
   <div id="name-screen" class="screen active">
     <div class="container">
       <h1>Knowledge Quiz</h1>
-      <p style="margin: 15px 0 30px; opacity: 0.8;">Enter your name to begin</p>
-      
-      <div class="input-group">
-        <input type="text" id="user-name" placeholder="Your full name" autocomplete="off" />
-      </div>
-      
+      <p style="margin: 15px 0 30px; opacity: 0.8;">Enter your name to begin the test</p>
+      <input type="text" id="user-name" placeholder="Your Full Name" autocomplete="off" />
       <button onclick="startQuiz()">Start Quiz</button>
     </div>
   </div>
@@ -172,11 +130,10 @@
   <div id="quiz-screen" class="screen">
     <div class="container">
       <div class="question-header">
-        <span id="question-counter">1 / 30</span>
+        <span id="question-counter">1 / 5</span>
         <span id="timer">15s</span>
       </div>
-      
-      <div class="progress-container">
+      <div id="progress-bar-container">
         <div id="progress-bar"></div>
       </div>
 
@@ -189,9 +146,10 @@
   <div id="thank-screen" class="screen">
     <div class="container">
       <div class="thank-icon">✅</div>
-      <h1 id="thank-title">Thank You!</h1>
+      <h1>Thank You!</h1>
       <p id="thank-text" style="margin-top: 15px; opacity: 0.9;">
-        Your answers have been recorded and sent.
+        Your answers have been sent successfully.<br>
+        Check the Telegram group for results.
       </p>
     </div>
   </div>
@@ -204,17 +162,38 @@ let userName = '';
 let currentQuestion = 0;
 let timerInterval;
 let sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-let tg = window.Telegram.WebApp;
 
+const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand();
 
-// ============== QUESTIONS (Add your 30 questions here) ==============
+// ============== 5 TEST QUESTIONS ==============
 const questions = [
-  // Example format:
-  // { q: "What is the capital of France?", options: ["London", "Berlin", "Paris", "Madrid"], correct: 2 },
-  // Add all your 30 questions here in the same format
-  // ... your 30 questions ...
+  {
+    q: "What is the capital of France?",
+    options: ["London", "Berlin", "Paris", "Madrid"],
+    correct: 2
+  },
+  {
+    q: "Which planet is known as the Red Planet?",
+    options: ["Venus", "Mars", "Jupiter", "Saturn"],
+    correct: 1
+  },
+  {
+    q: "What is the largest ocean on Earth?",
+    options: ["Atlantic Ocean", "Indian Ocean", "Arctic Ocean", "Pacific Ocean"],
+    correct: 3
+  },
+  {
+    q: "Who painted the Mona Lisa?",
+    options: ["Vincent van Gogh", "Pablo Picasso", "Leonardo da Vinci", "Michelangelo"],
+    correct: 2
+  },
+  {
+    q: "What is the chemical symbol for Gold?",
+    options: ["Go", "Gd", "Au", "Ag"],
+    correct: 2
+  }
 ];
 
 // ============== CORE FUNCTIONS ==============
@@ -228,11 +207,11 @@ function startQuiz() {
   document.getElementById('name-screen').classList.remove('active');
   document.getElementById('quiz-screen').classList.add('active');
 
-  // Notify Google Script
+  // Notify Google Script that quiz started
   fetch(GOOGLE_SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: "start_quiz", sessionId, userName }),
+    body: JSON.stringify({ action: "start_quiz", sessionId: sessionId, userName: userName }),
     mode: 'no-cors'
   });
 
@@ -248,7 +227,7 @@ function loadQuestion() {
   const q = questions[currentQuestion];
   
   document.getElementById('question-counter').textContent = `${currentQuestion + 1} / ${questions.length}`;
-  document.getElementById('question-text').innerHTML = q.q;
+  document.getElementById('question-text').innerText = q.q;
 
   const optsDiv = document.getElementById('options');
   optsDiv.innerHTML = '';
@@ -256,7 +235,7 @@ function loadQuestion() {
   q.options.forEach((opt, i) => {
     const btn = document.createElement('div');
     btn.className = 'option';
-    btn.textContent = opt;
+    btn.innerText = opt;
     btn.onclick = () => selectAnswer(i);
     optsDiv.appendChild(btn);
   });
@@ -289,7 +268,7 @@ function selectAnswer(selectedIndex) {
   clearInterval(timerInterval);
   const q = questions[currentQuestion];
   const isCorrect = selectedIndex === q.correct;
-  
+
   submitAnswer(selectedIndex, q.options[selectedIndex], isCorrect);
 }
 
@@ -335,22 +314,11 @@ function submitQuiz(isCompleted = true) {
 
 // ============== TELEGRAM EVENTS ==============
 tg.onEvent('viewportChanged', () => {
-  if (tg.isClosing) {
-    submitQuiz(false);
-  }
+  if (tg.isClosing) submitQuiz(false);
 });
 
-window.addEventListener('beforeunload', () => {
-  submitQuiz(false);
-});
+window.addEventListener('beforeunload', () => submitQuiz(false));
 
-// Optional: Handle back button
-tg.BackButton.onClick(() => {
-  submitQuiz(false);
-  tg.close();
-});
-
-// Start
 </script>
 </body>
 </html>
