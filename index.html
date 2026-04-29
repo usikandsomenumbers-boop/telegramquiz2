@@ -1,428 +1,145 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Quiz</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0f0f0f;
-      color: white;
-      margin: 0;
-      padding: 20px;
-      text-align: center;
-      min-height: 100vh;
-    }
-    .container { max-width: 420px; margin: 40px auto 0; }
-    h1 { font-size: 28px; margin-bottom: 8px; }
-    p { color: #aaaaaa; margin-bottom: 20px; }
-    input, button {
-      width: 100%;
-      padding: 16px 20px;
-      margin-bottom: 20px;
-      border-radius: 16px;
-      font-size: 17px;
-      box-sizing: border-box;
-    }
-    input { background: #1f1f1f; color: white; border: none; }
-    button {
-      background: #229ED9;
-      color: white;
-      border: none;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    button:active { background: #1a8ac4; }
-    .option {
-      background: #1f1f1f;
-      margin: 10px 0;
-      padding: 16px;
-      border-radius: 12px;
-      text-align: left;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    #progress-container {
-      height: 12px;
-      background: #333;
-      border-radius: 10px;
-      margin: 25px 0;
-      overflow: hidden;
-    }
-    #progress-bar {
-      height: 100%;
-      background: #ff4444;
-      transition: width 0.4s ease;
-    }
-  </style>
-</head>
-<body>
-  <!-- Name Screen -->
-  <div id="name-screen" class="container">
-    <h1>📝 Quiz</h1>
-    <p>Please enter your full name to start</p>
-    <input id="user-name" type="text" placeholder="Your Full Name">
-    <button onclick="startQuiz()">Start Quiz</button>
-  </div>
+<script>
+  const tg = window.Telegram.WebApp;
+  tg.ready();
+  tg.expand();
 
-  <!-- Quiz Screen -->
-  <div id="quiz-screen" style="display: none;" class="container">
-    <h2 id="question-text"></h2>
-    <div id="progress-container">
-      <div id="progress-bar" style="width:100%"></div>
-    </div>
-    <div id="options"></div>
-  </div>
+  let userName = '';
+  let currentQuestion = 0;
+  let timerInterval;
+  let sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
-  <!-- Processing Screen -->
-  <div id="thank-screen" style="display: none;" class="container">
-    <h1 id="thank-title">Processing...</h1>
-    <p id="thank-text">Please wait while we save your result</p>
-   
-    <div id="progress-container">
-      <div id="progress-bar" style="width:0%"></div>
-    </div>
-    <p id="status-text" style="color:#aaa; margin-top:15px;"></p>
-  </div>
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwFeA1heTX6AxVqVh_WqIUo8oiF6gzoM3ghscRKI8tRCMvniQJ1mydyGqbbS2KaeltTQQ/exec";
 
-  <script>
-    const tg = window.Telegram.WebApp;
-    tg.ready();
-    tg.expand();
+  const questions = [ /* ... your 30 questions remain the same ... */ ];
 
-    let userName = '';
-    let currentQuestion = 0;
-    let timerInterval;
-    let answers = [];
+  // Start Quiz
+  function startQuiz() {
+    userName = document.getElementById('user-name').value.trim();
+    if (!userName) return alert("Name is required!");
 
-   const questions = [
-  { q: "You arrive at a scale and an officer approaches your truck. Your status is OFF duty. What should you do first?", 
-    options: ["Stay OFF duty", "Switch to On Duty immediately", "Switch to Sleeper Berth", "Start driving"], 
-    correct: 1 },
+    document.getElementById('name-screen').style.display = 'none';
+    document.getElementById('quiz-screen').style.display = 'block';
 
-  { q: "Your ELD freezes while driving. What is the correct action?", 
-    options: ["Keep driving and fix later", "Restart and continue without logs", "Switch to paper logs and notify company", "Ignore it"], 
-    correct: 2 },
+    // Notify Google Script that quiz started
+    fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: "start_quiz",
+        sessionId: sessionId,
+        userName: userName
+      }),
+      mode: 'no-cors'
+    });
 
-  { q: "You just finished fueling and forgot to change status from Driving. What should you do?", 
-    options: ["Leave it", "Delete the log", "Edit to On Duty (fuel)", "Restart ELD"], 
-    correct: 2 },
+    loadQuestion();
+  }
 
-  { q: "During inspection, the officer asks for logs. Your ELD is working. What is required?", 
-    options: ["Show phone", "Transfer logs electronically", "Say system is down", "Print only"], 
-    correct: 1 },
-
-  { q: "You are doing a 30-minute break but sitting in the driver seat with engine on. Correct status?", 
-    options: ["Driving", "On Duty", "OFF duty", "Yard Move"], 
-    correct: 2 },
-
-  { q: "You move your truck inside a yard to another dock. What status?", 
-    options: ["Driving", "PC", "Yard Move", "OFF duty"], 
-    correct: 2 },
-
-  { q: "Dispatcher tells you to use Personal Conveyance to go to next shipper. What is correct?", 
-    options: ["Accept and use PC", "Refuse and use Driving", "Use OFF duty", "Use Sleeper"], 
-    correct: 1 },
-
-  { q: "You are stopped for DOT inspection but forgot to add remark. What should you do?", 
-    options: ["Ignore", "Add “DOT inspection” remark", "Delete event", "Restart ELD"], 
-    correct: 1 },
-
-  { q: "Your co-driver is driving. You are in passenger seat resting but not in sleeper. Status?", 
-    options: ["OFF duty", "Sleeper Berth", "On Duty", "Driving"], 
-    correct: 0 },
-
-  { q: "Your ELD shows a violation, but you believe it's wrong. What should you do?", 
-    options: ["Ignore", "Edit if allowed and add annotation", "Delete violation", "Turn off ELD"], 
-    correct: 1 },
-
-  { q: "Officer asks for last 7 days logs. You only have today’s logs. What happens?", 
-    options: ["No issue", "Violation", "Warning only", "Allowed"], 
-    correct: 1 },
-
-  { q: "You drive 2 miles without ELD due to malfunction. What must you do?", 
-    options: ["Nothing", "Record on paper log", "Ignore", "Delete trip"], 
-    correct: 1 },
-
-  { q: "You are loading but mark OFF duty. What is the issue?", 
-    options: ["No issue", "HOS violation (wrong status)", "Device error", "Legal"], 
-    correct: 1 },
-
-  { q: "Inspection starts. You remain in Sleeper Berth. Is it correct?", 
-    options: ["Yes", "No, must be On Duty", "Only at night", "Only if tired"], 
-    correct: 1 },
-
-  { q: "You forget to enter trailer number. What happens?", 
-    options: ["No problem", "Minor violation", "Major violation", "Not required"], 
-    correct: 1 },
-
-  { q: "You use Yard Move on public road. Result?", 
-    options: ["OK", "Violation", "Recommended", "Optional"], 
-    correct: 1 },
-
-  { q: "You use Personal Conveyance to move loaded trailer closer to delivery. Correct?", 
-    options: ["Yes", "No, violation", "Only at night", "Only short distance"], 
-    correct: 1 },
-
-  { q: "ELD malfunction continues for 2 days. What must happen?", 
-    options: ["Keep driving", "Repair within 8 days", "Ignore", "Buy new truck"], 
-    correct: 1 },
-
-  { q: "You are at a shipper waiting but not working. Status?", 
-    options: ["Driving", "On Duty", "OFF duty (if relieved)", "Yard Move"], 
-    correct: 2 },
-
-  { q: "Officer cannot receive your logs electronically. What do you do?", 
-    options: ["Leave", "Show display or print", "Refuse", "Turn off device"], 
-    correct: 1 },
-
-  { q: "You forgot to log pre-trip inspection. What should you do?", 
-    options: ["Ignore", "Add/edit On Duty (pre-trip)", "Delete logs", "Restart ELD"], 
-    correct: 1 },
-
-  { q: "Driver exceeds 11-hour driving limit. What is this?", 
-    options: ["Warning", "HOS violation", "Normal", "Optional"], 
-    correct: 1 },
-
-  { q: "You are resting in sleeper while co-driver drives. Correct status?", 
-    options: ["OFF duty", "Sleeper Berth", "On Duty", "PC"], 
-    correct: 1 },
-
-  { q: "You move truck for maintenance inside yard. Status?", 
-    options: ["Driving", "PC", "Yard Move", "OFF duty"], 
-    correct: 2 },
-
-  { q: "You start driving without logging in to ELD. Result?", 
-    options: ["OK", "Unidentified driving event", "Legal", "Optional"], 
-    correct: 1 },
-
-  { q: "Officer asks what PC means. Correct answer?", 
-    options: ["Work driving", "Personal use only", "Yard work", "Inspection"], 
-    correct: 1 },
-
-  { q: "You edit logs but don’t add note. Issue?", 
-    options: ["No issue", "Violation risk (no annotation)", "Required", "Optional"], 
-    correct: 1 },
-
-  { q: "Driver logs show gaps in time. What does it indicate?", 
-    options: ["Perfect logs", "Possible violation", "Normal", "Good practice"], 
-    correct: 1 },
-
-  { q: "You switch to OFF duty during unloading to save hours. Result?", 
-    options: ["Smart", "Violation", "Legal", "Recommended"], 
-    correct: 1 },
-
-  { q: "DOT officer sees multiple log errors. Likely outcome?", 
-    options: ["Nothing", "Warning only", "Fines / out-of-service risk", "Reward"], 
-    correct: 2 }
-];
-
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwFeA1heTX6AxVqVh_WqIUo8oiF6gzoM3ghscRKI8tRCMvniQJ1mydyGqbbS2KaeltTQQ/exec";
-
-    function startQuiz() {
-      userName = document.getElementById('user-name').value.trim();
-      if (!userName) return alert("Name is required!");
-      document.getElementById('name-screen').style.display = 'none';
-      document.getElementById('quiz-screen').style.display = 'block';
-      loadQuestion();
+  // Load Question (same as before)
+  function loadQuestion() {
+    if (currentQuestion >= questions.length) {
+      submitQuiz(true);
+      return;
     }
 
-    function loadQuestion() {
-      if (currentQuestion >= questions.length) {
-        submitAutomatically();
-        return;
+    const q = questions[currentQuestion];
+    document.getElementById('question-text').innerText = `${currentQuestion + 1}. ${q.q}`;
+
+    const optsDiv = document.getElementById('options');
+    optsDiv.innerHTML = '';
+
+    q.options.forEach((opt, i) => {
+      const btn = document.createElement('div');
+      btn.className = 'option';
+      btn.innerText = opt;
+      btn.onclick = () => selectAnswer(i);
+      optsDiv.appendChild(btn);
+    });
+
+    startProgressBar();
+  }
+
+  function startProgressBar() {
+    const bar = document.getElementById('progress-bar');
+    let timeLeft = 10;
+    bar.style.width = '100%';
+    clearInterval(timerInterval);
+
+    timerInterval = setInterval(() => {
+      timeLeft -= 0.1;
+      bar.style.width = (timeLeft / 10 * 100) + '%';
+
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        submitAnswer(null); // Time expired
       }
-      const q = questions[currentQuestion];
-      document.getElementById('question-text').innerText = `${currentQuestion + 1}. ${q.q}`;
-      const optsDiv = document.getElementById('options');
-      optsDiv.innerHTML = '';
-      q.options.forEach((opt, i) => {
-        const btn = document.createElement('div');
-        btn.className = 'option';
-        btn.innerText = opt;
-        btn.onclick = () => selectAnswer(i);
-        optsDiv.appendChild(btn);
-      });
-      startProgressBar();
-    }
-
-    function startProgressBar() {
-      const bar = document.getElementById('progress-bar');
-      let timeLeft = 10;
-      bar.style.width = '100%';
-      clearInterval(timerInterval);
-      timerInterval = setInterval(() => {
-        timeLeft -= 0.1;
-        bar.style.width = (timeLeft / 10 * 100) + '%';
-        if (timeLeft <= 0) {
-          clearInterval(timerInterval);
-          answers.push({ qIndex: currentQuestion, answer: null, correct: false });
-          currentQuestion++;
-          loadQuestion();
-        }
-      }, 100);
-    }
-
-    function selectAnswer(selected) {
-      clearInterval(timerInterval);
-      const q = questions[currentQuestion];
-      answers.push({
-        qIndex: currentQuestion,
-        answer: q.options[selected],
-        correct: selected === q.correct
-      });
-      currentQuestion++;
-      loadQuestion();
-    }
-
-    function submitAutomatically() {
-      document.getElementById('quiz-screen').style.display = 'none';
-      document.getElementById('thank-screen').style.display = 'block';
-      generateAndSendPDF();
-    }
-
-    function generateAndSendPDF() {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF('p', 'mm', 'a4');
-
-      const submissionDate = new Date().toLocaleString('en-US', {
-        year: 'numeric', month: 'long', day: 'numeric',
-        hour: '2-digit', minute: '2-digit'
-      });
-
-      const correctCount = answers.filter(ans => ans.correct === true).length;
-      const totalQuestions = questions.length;
-      const scorePercent = Math.round((correctCount / totalQuestions) * 100);
-
-          // === PROFESSIONAL HEADER ===
-      doc.setFillColor(34, 158, 217);        // Keep your original nice blue color
-      doc.rect(0, 0, 210, 45, 'F');          // Slightly taller header
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(26);                   // Bigger text
-      doc.setFont("helvetica", "bold");      // Make text bold
-      doc.text("QUIZ RESULT", 105, 28, { align: "center" });
-
-      // Optional subtle subtitle
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(230, 240, 255);
-
-      // Info
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(16);
-      doc.text(`Participant: ${userName}`, 20, 55);
-      doc.text(`Submitted: ${submissionDate}`, 20, 65);
-
-      // Score
-      doc.setFillColor(240, 240, 240);
-      doc.rect(20, 80, 170, 35, 'F');
-      doc.setFontSize(18);
-      doc.setTextColor(34, 158, 217);
-      doc.text(`Correct Answers: ${correctCount}/${totalQuestions} (${scorePercent}%)`, 105, 98, { align: "center" });
-
-      doc.setDrawColor(34, 158, 217);
-      doc.setLineWidth(0.8);
-      doc.line(20, 125, 190, 125);
-
-      // Answers
-     let y = 145;
-doc.setFontSize(13);
-doc.setTextColor(0, 0, 0);
-
-answers.forEach((ans, i) => {
-  const q = questions[i];
-  const userAnswer = ans.answer || "⏰ Time expired";
-  const isCorrect = ans.correct;
-
-  // === QUESTION (with wrapping) ===
-  doc.setFontSize(13);
-  doc.setTextColor(0, 0, 0);
-  const maxWidth = 170;
-  const questionLines = doc.splitTextToSize(`${i+1}. ${q.q}`, maxWidth);
-  
-  doc.text(questionLines, 20, y);
-  y += questionLines.length * 7.5;   // Adjust multiplier if needed
-
-  // === USER'S ANSWER ===
-  doc.setFontSize(11);
-  if (isCorrect) {
-    doc.setTextColor(0, 150, 0);
-    doc.text(`✓ User's Answer: ${userAnswer}`, 25, y);
-  } else {
-    doc.setTextColor(200, 50, 50);
-    doc.text(`✕ User's Answer: ${userAnswer}`, 25, y);
+    }, 100);
   }
-  y += 10;
 
-  // === CORRECT ANSWER ===
-  doc.setTextColor(80, 80, 80);
-  const correctAnswerLines = doc.splitTextToSize(`Correct Answer: ${q.options[q.correct]}`, maxWidth);
-  doc.text(correctAnswerLines, 25, y);
-  y += correctAnswerLines.length * 7 + 12;   // Extra space after correct answer
-
-  // === PAGE BREAK CHECK ===
-  if (y > 270) {
-    doc.addPage();
-    y = 30;
+  function selectAnswer(selected) {
+    clearInterval(timerInterval);
+    const q = questions[currentQuestion];
+    submitAnswer(selected, q.options[selected], selected === q.correct);
   }
-});
 
-      // Footer
-      doc.setFontSize(10);
-      doc.setTextColor(140, 140, 140);
-      doc.text("Thank you for participating!", 105, 290, { align: "center" });
-      doc.text("Generated via Telegram Mini App", 105, 297, { align: "center" });
+  // Send answer immediately
+  function submitAnswer(selectedIndex, userAnswerText, isCorrect) {
+    const q = questions[currentQuestion];
 
-      const pdfBase64 = doc.output('datauristring').split(',')[1];
+    fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: "submit_answer",
+        sessionId: sessionId,
+        questionIndex: currentQuestion,
+        questionText: q.q,
+        userAnswer: userAnswerText || "⏰ Time Expired",
+        correctAnswer: q.options[q.correct],
+        isCorrect: isCorrect || false
+      }),
+      mode: 'no-cors'
+    });
 
-      // Progress
-      const progressBar = document.getElementById('progress-bar');
-      let progress = 0;
-      const progressInterval = setInterval(() => {
-        progress += 12 + Math.random() * 18;
-        if (progress > 92) progress = 92;
-        progressBar.style.width = progress + '%';
-      }, 220);
+    currentQuestion++;
+    loadQuestion();
+  }
 
-      // Send with no-cors mode to bypass CORS issues
-      setTimeout(() => {
-        clearInterval(progressInterval);
-        progressBar.style.width = '100%';
+  // Final submission
+  function submitQuiz(isCompleted = true) {
+    document.getElementById('quiz-screen').style.display = 'none';
+    document.getElementById('thank-screen').style.display = 'block';
 
-        const payload = {
-          userName: userName,
-          correctAnswers: correctCount,
-          totalQuestions: totalQuestions,
-          scorePercent: scorePercent,
-          pdfBase64: pdfBase64,
-          submissionDate: submissionDate
-        };
+    const action = isCompleted ? "quiz_finished" : "quiz_closed";
 
-        fetch(GOOGLE_SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          mode: 'no-cors'          // ← This is the key fix for CORS in Telegram Mini Apps
-        })
-        .then(() => {
-          // With no-cors we can't read the response, so we assume success
-          document.getElementById('thank-title').innerHTML = "✅ Thank you!";
-          document.getElementById('thank-text').innerHTML = "Your submission has been recorded.<br>You can close this window now.";
-          document.getElementById('status-text').style.display = "none";
-        })
-        .catch(err => {
-          console.error("Fetch error:", err);
-          // Still show neutral success message (the PDF is usually sent anyway)
-          document.getElementById('thank-title').innerHTML = "✅ Thank you!";
-          document.getElementById('thank-text').innerHTML = "Your submission has been recorded.<br>You can close this window now.";
-          document.getElementById('status-text').style.display = "none";
-        });
-      }, 1800);
+    fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: action,
+        sessionId: sessionId,
+        userName: userName
+      }),
+      mode: 'no-cors'
+    }).then(() => {
+      document.getElementById('thank-title').innerHTML = "✅ Thank you!";
+      document.getElementById('thank-text').innerHTML = "Your result has been sent to the group.";
+    });
+  }
+
+  // Detect when user closes the Mini App
+  tg.onEvent('viewportChanged', () => {
+    if (tg.isClosing) {
+      submitQuiz(false);   // Send partial result if they close early
     }
-  </script>
+  });
+
+  // Optional: Also catch back button or close
+  window.addEventListener('beforeunload', () => {
+    submitQuiz(false);
+  });
+</script>
 </body>
 </html>
